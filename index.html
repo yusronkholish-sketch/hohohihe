@@ -343,7 +343,9 @@ svg .mascot.small { width: 300px; height: 400px; }
 .guide-ill { width: 520px; height: 300px; border-radius: 18px; background: #EEF3F7; display: grid; place-items: center; overflow: hidden; position: relative; }
 .guide-page h3 { font-family: var(--f-head); font-weight: 800; font-size: 40px; margin: 22px 0 6px; line-height: 1.05; }
 .guide-page p { font-size: 26px; margin: 0; max-width: 620px; }
-.guide-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; }
+.guide-nav { display: flex; justify-content: space-between; align-items: center; margin: 16px -24px 0; }
+.guide-nav .js-skip { padding-left: 12px; padding-right: 12px; }
+.guide-nav .js-next { min-width: 280px; }
 .guide-tip { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); background: rgba(29, 53, 87, .92); color: #fff; font-size: 22px; padding: 10px 26px; border-radius: 99px; display: flex; gap: 10px; align-items: center; white-space: nowrap; }
 
 /* ---------- LAB ---------- */
@@ -2275,7 +2277,6 @@ Scenes.panduan = {
     $('.js-page', this.el).innerHTML = `<div class="guide-page" style="width:100%"><div class="guide-ill">${guideArt(this.i)}</div><h3>${this.i + 1}. ${g.t}</h3><p>${g.d}</p></div>`;
     const nx = $('.js-next', this.el);
     nx.innerHTML = this.i < GUIDE.length - 1 ? `Lanjut${icon('right')}` : `${icon('check')}MENGERTI`;
-    nx.classList.toggle('btn-lg', this.i === GUIDE.length - 1);
     $('.js-skip', this.el).style.visibility = this.i < GUIDE.length - 1 ? 'visible' : 'hidden';
     setTimeout(() => { if (current === 'panduan') say(null, $('.guide-mascot .mascot', this.el), null, 'guide_' + (this.i + 1)); }, 350);
   },
