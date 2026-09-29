@@ -32,11 +32,12 @@ button:disabled { cursor: not-allowed; }
 :focus-visible { outline: 5px solid #F5C766; outline-offset: 4px; border-radius: 10px; }
 .ico { width: 1em; height: 1em; flex: none; }
 
-#stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; transform: translate(-50%, -50%) scale(var(--s, .5));
+#stage { position: absolute; left: 50%; top: 50%; width: var(--sw, 1920px); height: var(--sh, 1080px); transform: translate(-50%, -50%) scale(var(--s, .5));
   transform-origin: center; overflow: hidden; background: var(--wall); font-size: 26px; line-height: 1.45; user-select: none; -webkit-user-select: none; touch-action: none; }
 .scene { position: absolute; inset: 0; display: none; }
 .scene.active { display: block; }
 .bg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.frame { position: absolute; left: var(--ox, 0px); top: var(--oy, 0px); width: 1920px; height: 1080px; }
 #fader { position: absolute; inset: 0; background: #0E1620; opacity: 0; pointer-events: none; transition: opacity .28s ease; z-index: 90; }
 #fader.on { opacity: 1; pointer-events: all; }
 #fader.slow { transition-duration: 1.1s; }
@@ -344,6 +345,7 @@ svg .mascot.small { width: 300px; height: 400px; }
 .guide-page h3 { font-family: var(--f-head); font-weight: 800; font-size: 40px; margin: 22px 0 6px; line-height: 1.05; }
 .guide-page p { font-size: 26px; margin: 0; max-width: 620px; }
 .guide-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; }
+.guide-next { min-width: 250px; }
 .guide-tip { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); background: rgba(29, 53, 87, .92); color: #fff; font-size: 22px; padding: 10px 26px; border-radius: 99px; display: flex; gap: 10px; align-items: center; white-space: nowrap; }
 
 /* ---------- LAB ---------- */
@@ -1517,20 +1519,24 @@ const icon = (name, cls = '') => `<svg class="ico ${cls}" viewBox="0 0 24 24" ar
 let _uid = 0;
 function woodDesk(y, h = 1080 - y) {
   const id = 'wd' + (++_uid);
+  // meja dibuat jauh lebih lebar/tinggi dari 1920x1080 agar tetap penuh di layar dengan rasio apa pun
+  const X0 = -3840, WW = 9600, HH = 4000;
   let grain = '';
-  for (let i = 0; i < 9; i++) {
+  for (let i = 0; i < 16; i++) {
     const gy = y + 34 + i * (h / 9);
-    grain += `<path d="M0 ${gy} C 400 ${gy - 8}, 800 ${gy + 10}, 1200 ${gy} S 1700 ${gy - 6}, 1920 ${gy + 4}" stroke="#A96F3F" stroke-opacity=".28" stroke-width="3" fill="none"/>`;
+    let d = `M${X0} ${gy}`;
+    for (let x = X0; x < X0 + WW; x += 960) d += ` C ${x + 240} ${gy - 8}, ${x + 560} ${gy + 10}, ${x + 960} ${gy}`;
+    grain += `<path d="${d}" stroke="#A96F3F" stroke-opacity=".28" stroke-width="3" fill="none"/>`;
   }
-  return `<defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D49A64"/><stop offset="1" stop-color="#B7773F"/></linearGradient></defs>
-  <rect x="0" y="${y}" width="1920" height="${h}" fill="url(#${id})"/>${grain}
-  <rect x="0" y="${y}" width="1920" height="16" fill="#E7B783"/><rect x="0" y="${y + 16}" width="1920" height="6" fill="#9C6636" opacity=".35"/>`;
+  return `<defs><linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="0" y1="${y}" x2="0" y2="${y + h}"><stop offset="0" stop-color="#D49A64"/><stop offset="1" stop-color="#B7773F"/></linearGradient></defs>
+  <rect x="${X0}" y="${y}" width="${WW}" height="${HH}" fill="url(#${id})"/>${grain}
+  <rect x="${X0}" y="${y}" width="${WW}" height="16" fill="#E7B783"/><rect x="${X0}" y="${y + 16}" width="${WW}" height="6" fill="#9C6636" opacity=".35"/>`;
 }
 
 function wall() {
   const id = 'wp' + (++_uid);
   return `<defs><pattern id="${id}" width="64" height="64" patternUnits="userSpaceOnUse"><rect width="64" height="64" fill="#E3ECE6"/><path d="M32 0v64" stroke="#D5E1D9" stroke-width="3"/></pattern></defs>
-  <rect width="1920" height="1080" fill="url(#${id})"/>`;
+  <rect x="-3840" y="-3000" width="9600" height="8000" fill="url(#${id})"/>`;
 }
 
 function binders(x, y, s = 1) {
@@ -1755,8 +1761,27 @@ const Store = {
   reset() { this.d = { musicOn: this.d.musicOn }; this.save(); },
 };
 
-let stage, SCALE = 1;
-function fit() { SCALE = Math.min(innerWidth / W, innerHeight / H); stage.style.setProperty('--s', SCALE); }
+let stage, SCALE = 1, SW = W, SH = H, OX = 0, OY = 0;
+// Panggung mengikuti bentuk layar: sisi yang lebih lebar/tinggi dari 16:9 diisi latar kantor,
+// sedangkan isi utama (1920x1080) tetap di tengah dengan proporsi aslinya.
+function fit() {
+  const ar = innerWidth / innerHeight, base = W / H;
+  SW = Math.round(ar > base ? H * ar : W); SH = Math.round(ar > base ? H : W / ar);
+  OX = (SW - W) / 2; OY = (SH - H) / 2; SCALE = innerWidth / SW;
+  const st = stage.style;
+  st.setProperty('--s', SCALE); st.setProperty('--sw', SW + 'px'); st.setProperty('--sh', SH + 'px');
+  st.setProperty('--ox', OX + 'px'); st.setProperty('--oy', OY + 'px');
+  $$('svg.bg', stage).forEach((svg) => { svg.setAttribute('viewBox', `${-OX} ${-OY} ${SW} ${SH}`); svg.setAttribute('preserveAspectRatio', 'none'); });
+}
+// pindahkan isi adegan ke dalam bingkai 1920x1080 di tengah; latar, bilah atas, dan tombol sudut tetap selebar layar
+function framify(section) {
+  const frame = document.createElement('div'); frame.className = 'frame';
+  const isBleed = (ch) => ch.matches('.bg, .topbar, .hud, .sp-center, .sp-foot, .sp-glow, [data-bleed]') || ch.classList.contains('hud-btn');
+  const kids = [...section.children]; const first = kids.find((ch) => !isBleed(ch));
+  if (!first) return;
+  section.insertBefore(frame, first); // urutan tumpukan tetap sama seperti semula
+  kids.forEach((ch) => { if (!isBleed(ch)) frame.appendChild(ch); });
+}
 function toStage(e) { const r = stage.getBoundingClientRect(); return { x: (e.clientX - r.left) / SCALE, y: (e.clientY - r.top) / SCALE }; }
 
 function animateIn(node, cls, delay = 0) {
@@ -2254,11 +2279,11 @@ const GUIDE = [
 Scenes.panduan = {
   el: null, i: 0,
   build() {
-    this.el = el(`<section class="scene" id="panduan" aria-label="Panduan simulasi">${officeLabBG()}<div style="position:absolute;inset:0;background:rgba(227,236,230,.55)"></div>
+    this.el = el(`<section class="scene" id="panduan" aria-label="Panduan simulasi">${officeLabBG()}<div data-bleed style="position:absolute;inset:0;background:rgba(227,236,230,.55)"></div>
       <button class="hud-btn js-home" style="position:absolute;left:32px;top:28px;z-index:30">${icon('home')}<span>Beranda</span></button>
       ${hudHTML()}
       <div class="clipboard"><div class="clip-paper"><h2>Panduan Simulasi</h2><div class="sub"></div><div class="dots"></div><div class="js-page" style="flex:1;display:flex"></div>
-        <div class="guide-nav"><button class="btn btn-light btn-sm js-prev">${icon('left')}Kembali</button><button class="btn btn-sm js-skip" style="background:transparent;color:var(--muted);box-shadow:none">Lewati panduan</button><button class="btn btn-green js-next"></button></div></div></div>
+        <div class="guide-nav"><button class="btn btn-light btn-sm js-prev">${icon('left')}Kembali</button><button class="btn btn-sm js-skip" style="background:transparent;color:var(--muted);box-shadow:none">Lewati panduan</button><button class="btn btn-green js-next guide-next"></button></div></div></div>
       <button class="guide-mascot js-gm" aria-label="Dengarkan lagi penjelasan Arsi">${mascotSVG()}</button>
       <div class="guide-tip">${icon('info')}Ikuti langkah-langkah di atas untuk menyelesaikan simulasi dengan benar.</div></section>`);
     $('.js-gm', this.el).onclick = () => say(null, $('.guide-mascot .mascot', this.el), null, 'guide_' + (this.i + 1));
@@ -2275,7 +2300,6 @@ Scenes.panduan = {
     $('.js-page', this.el).innerHTML = `<div class="guide-page" style="width:100%"><div class="guide-ill">${guideArt(this.i)}</div><h3>${this.i + 1}. ${g.t}</h3><p>${g.d}</p></div>`;
     const nx = $('.js-next', this.el);
     nx.innerHTML = this.i < GUIDE.length - 1 ? `Lanjut${icon('right')}` : `${icon('check')}MENGERTI`;
-    nx.classList.toggle('btn-lg', this.i === GUIDE.length - 1);
     $('.js-skip', this.el).style.visibility = this.i < GUIDE.length - 1 ? 'visible' : 'hidden';
     setTimeout(() => { if (current === 'panduan') say(null, $('.guide-mascot .mascot', this.el), null, 'guide_' + (this.i + 1)); }, 350);
   },
@@ -2288,7 +2312,7 @@ Scenes.panduan = {
 Scenes.bye = {
   el: null,
   build() {
-    this.el = el(`<section class="scene" id="bye" style="background:#0E1620;color:#fff"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;text-align:center">
+    this.el = el(`<section class="scene" id="bye" style="background:#0E1620;color:#fff"><div data-bleed style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;text-align:center">
       <div style="width:260px">${mascotSVG()}</div><h2 style="font-family:var(--f-head);font-size:72px;margin:0;line-height:1">Terima kasih sudah belajar!</h2>
       <p style="font-size:30px;color:#C9D6E3;margin:0">Kamu boleh menutup tab browser ini sekarang.</p><button class="btn btn-light js-home">${icon('home')}Kembali ke beranda</button></div></section>`);
     $('.js-home', this.el).onclick = () => go('home');
@@ -2666,7 +2690,7 @@ const Lab = {
     const ml = $('.mat-letter', this.el); const L = this.cur; const first = this.phase === 'file';
     this.phase = 'done'; this.selected = false;
     drawer.classList.remove('target'); drawer.classList.add('open'); Sound.play('drawerOpen');
-    if (!ghost) { ghost = el(`<div class="ghost letterg"></div>`); ghost.appendChild(this.buildLetter()); stage.appendChild(ghost); ghost.style.transform = `translate(860px, 640px) scale(.3)`; }
+    if (!ghost) { ghost = el(`<div class="ghost letterg"></div>`); ghost.appendChild(this.buildLetter()); stage.appendChild(ghost); ghost.style.transform = `translate(${860 + OX}px, ${640 + OY}px) scale(.3)`; }
     ml && ml.remove();
     const r = drawer.getBoundingClientRect(), sr = stage.getBoundingClientRect();
     const tx = (r.left - sr.left) / SCALE + r.width / SCALE / 2 - 20, ty = (r.top - sr.top) / SCALE + 10;
@@ -2951,7 +2975,8 @@ function printResult() {
 function init() {
   Store.load(); Sound.musicOnInitial = Store.get('musicOn', true); Sound.voiceOnInitial = Store.get('voiceOn', true);
   stage = $('#stage'); fit(); addEventListener('resize', fit);
-  Object.values(Scenes).forEach((S) => { S.build(); stage.insertBefore(S.el, $('#modal-back')); });
+  Object.values(Scenes).forEach((S) => { S.build(); framify(S.el); stage.insertBefore(S.el, $('#modal-back')); });
+  fit();
   stage.addEventListener('click', (e) => {
     const b = e.target.closest('button'); if (!b || b.disabled) return;
     if (b.classList.contains('js-music')) { Sound.setMusic(!Sound.musicOn); Store.set('musicOn', Sound.musicOn); refreshMusicIcons(); }
